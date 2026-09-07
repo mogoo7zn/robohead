@@ -1,0 +1,69 @@
+# Route graph over the black-line network.
+# !!! Topology must match the real painted line field; measure and fill in. !!!
+
+route_nodes:
+  start:
+    x: TODO
+    y: TODO
+    yaw: TODO
+    zone: START
+    expected_marker: marker_1
+    arrival_behavior: CONTINUE
+    next: [mid_1]
+
+  mid_1:
+    x: TODO
+    y: TODO
+    yaw: TODO
+    zone: ROUTE
+    expected_marker: marker_6
+    arrival_behavior: CONTINUE
+    next: [material_gate]
+
+  material_gate:
+    x: TODO
+    y: TODO
+    yaw: TODO
+    zone: ROUTE
+    expected_marker: marker_2
+    arrival_behavior: TURN_RIGHT
+    next: [material_zone]
+
+  material_zone:
+    x: TODO
+    y: TODO
+    yaw: TODO
+    zone: MATERIAL
+    expected_marker: marker_3
+    arrival_behavior: ENTER_MANIPULATION
+    next: [material_gate]
+
+  build_gate:
+    x: TODO
+    y: TODO
+    yaw: TODO
+    zone: ROUTE
+    expected_marker: marker_4
+    arrival_behavior: TURN_LEFT
+    next: [build_zone]
+
+  build_zone:
+    x: TODO
+    y: TODO
+    yaw: TODO
+    zone: BUILD
+    expected_marker: marker_5
+    arrival_behavior: ENTER_MANIPULATION
+    next: [build_gate]
+
+route_edges:
+  # from, to, length(m), speed(m/s)
+  - {from: start, to: mid_1, length: 1.0, speed: 0.35}
+  - {from: mid_1, to: material_gate, length: 1.0, speed: 0.35}
+  - {from: material_gate, to: material_zone, length: 0.5, speed: 0.20}
+  - {from: material_zone, to: material_gate, length: 0.5, speed: 0.20}
+  - {from: material_gate, to: mid_1, length: 1.0, speed: 0.35}
+  - {from: mid_1, to: build_gate, length: 1.0, speed: 0.35}
+  - {from: build_gate, to: build_zone, length: 0.5, speed: 0.20}
+  - {from: build_zone, to: build_gate, length: 0.5, speed: 0.20}
+  - {from: build_gate, to: mid_1, length: 1.0, speed: 0.35}

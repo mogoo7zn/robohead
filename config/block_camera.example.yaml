@@ -1,0 +1,34 @@
+# BLOCK camera (orange / purple block detection & close alignment).
+# Separate file & separate topic; never merged with localization_camera.
+
+device:
+  type: TODO          # e.g. /dev/video2 on Pi
+  resolution: [640, 480]
+  fps: 30
+
+intrinsic:
+  fx: TODO
+  fy: TODO
+  cx: TODO
+  cy: TODO
+  distortion: [0.0, 0.0, 0.0, 0.0, 0.0]
+
+extrinsic:
+  # base_link -> block_camera_link
+  x: TODO
+  y: TODO
+  z: TODO
+  roll: TODO
+  pitch: TODO
+  yaw: TODO
+
+roi:
+  enabled: true
+  u_min: 0
+  v_min: 100
+  u_max: 640
+  v_max: 480
+
+ros:
+  topic_image: /block_camera/image_raw
+  topic_camera_info: /block_camera/camera_info

@@ -1,0 +1,14 @@
+# Navigation parameters (route following over the line network).
+
+line_follow:
+  default_speed: 0.35      # m/s
+  approach_speed: 0.15     # m/s near arrival nodes
+  arrival_radius: 0.12    # m: distance to node counted as arrival
+  marker_arrival_radius: 0.5  # m: expected marker must be closer than this
+  segment_timeout: 120.0   # s per route segment
+
+navigator:
+  max_wz: 1.0
+  kp_yaw: 1.5
+  turn_tolerance: 0.10     # rad
+  turn_timeout: 10.0       # s

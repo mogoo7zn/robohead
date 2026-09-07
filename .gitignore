@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ROS 2 / colcon (build from repo root or ros2_ws)
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
+install/
+log/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Local config with real calibration (keep *.example.yaml in git)
+config/*.local.yaml
+
+# Logs / bags
+*.log
+logs/
+bags/
+rosbag2/
+*.db3

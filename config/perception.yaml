@@ -1,0 +1,37 @@
+# Perception parameters: HSV block detection + marker detection backend.
+
+block_detector:
+  # HSV ranges (OpenCV convention: H 0-179, S 0-255, V 0-255). Calibrate on
+  # the real field lighting; these defaults are synthetic-image friendly.
+  orange:
+    lower: [5, 80, 80]
+    upper: [25, 255, 255]
+  purple:
+    lower: [125, 60, 60]
+    upper: [155, 255, 255]
+  min_area: 300          # px^2
+  max_area: 200000
+  morphology_kernel: 5
+  max_blocks: 4
+
+marker_detector:
+  backend: mock          # mock | apriltag | aruco | custom
+  aruco_dict: 4x4_50     # used when backend=aruco
+  apriltag_family: 36h11  # used when backend=apriltag
+
+alignment:
+  # target grab pixel position (calibrate on the real robot!)
+  target_u: 320
+  target_v: 240
+  target_angle: 0.0
+  u_tolerance: 15        # px
+  v_tolerance: 12        # px
+  angle_tolerance: 0.12  # rad
+  max_vx: 0.15
+  max_vy: 0.15
+  max_wz: 0.8
+  kp_u: 0.004
+  kp_v: 0.003
+  kp_angle: 1.2
+  target_lost_timeout: 2.0   # s without seeing block -> TARGET_LOST
+  search_timeout: 20.0       # s in SEARCH before FAILURE

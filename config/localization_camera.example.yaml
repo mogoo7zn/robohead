@@ -1,0 +1,34 @@
+# LOCALIZATION camera (dedicated to the 6 field markers).
+# Separate file & separate topic; never merged with block_camera.
+
+device:
+  type: TODO          # e.g. /dev/video0 on Pi, camera index on other hosts
+  resolution: [1280, 720]
+  fps: 30
+
+intrinsic:
+  fx: TODO
+  fy: TODO
+  cx: TODO
+  cy: TODO
+  distortion: [0.0, 0.0, 0.0, 0.0, 0.0]   # k1 k2 p1 p2 k3
+
+extrinsic:
+  # base_link -> localization_camera_link
+  x: TODO      # m
+  y: TODO
+  z: TODO
+  roll: TODO   # rad
+  pitch: TODO
+  yaw: TODO
+
+roi:
+  enabled: false
+  u_min: 0
+  v_min: 0
+  u_max: 1280
+  v_max: 720
+
+ros:
+  topic_image: /localization_camera/image_raw
+  topic_camera_info: /localization_camera/camera_info

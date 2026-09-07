@@ -1,0 +1,18 @@
+{
+    "name": "RoboGame 2026",
+    "build": {
+        "dockerfile": "../docker/Dockerfile.ros"
+    },
+    "workspaceFolder": "/workspace",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python",
+                "ms-vscode.cmake-tools",
+                "twxs.cmake"
+            ]
+        }
+    },
+    "postCreateCommand": "pip install --user -e .[dev] || pip install -e .[dev]",
+    "remoteUser": "ros"
+}

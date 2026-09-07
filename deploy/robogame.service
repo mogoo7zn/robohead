@@ -1,0 +1,23 @@
+[Unit]
+Description=RoboGame 2026 mission (ROS 2 bringup)
+After=network.target
+# Start only when the user opt-in flag exists:
+#   sudo systemctl enable robogame.service
+ConditionPathExists=/opt/robogame/ENABLE
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/robogame
+Environment=ROBOGAME_CONFIG_DIR=/home/pi/robogame/config
+ExecStartPre=/usr/bin/python3 /home/pi/robogame/scripts/check_config.py
+ExecStart=/bin/bash -c "source /opt/ros/jazzy/setup.bash && source /home/pi/robogame/ros2_ws/install/setup.bash && ros2 launch robogame_bringup mission.launch.py config_dir:=/home/pi/robogame"
+Restart=on-failure
+RestartSec=3
+
+# harden lightly: the robot is a moving vehicle
+KillSignal=SIGINT
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,39 @@
+# Manipulator (cross-slide X/Z + gripper) parameters.
+# All positions in mm (logical axis coordinates). Calibrate on the real rig.
+
+axis:
+  x:
+    min: 0
+    max: 300
+    home: 0
+    speed: 60.0          # mm/s
+  z:
+    min: 0
+    max: 200
+    home: 0
+    speed: 40.0          # mm/s
+
+gripper:
+  close_time: 1.0        # s
+  open_time: 1.0         # s
+
+positions:
+  pregrasp:  {x: 150, z: 80}
+  grasp:     {x: 150, z: 0}
+  place:     {x: 150, z: 60}
+  retreat:   {x: 150, z: 120}
+  home:      {x: 0,   z: 0}
+
+timeouts:
+  home: 15.0
+  move: 20.0
+  gripper: 5.0
+
+grab:
+  max_retries: 2         # Level-1 recovery retries before FAILURE
+
+place:
+  stability_wait: 3.0    # s: building must stand 3 s after release (rules)
+  retreat_distance: 0.15 # m chassis retreat after release
+  retreat_speed: 0.10
+  verify_timeout: 10.0

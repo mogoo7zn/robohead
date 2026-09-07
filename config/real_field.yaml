@@ -1,0 +1,98 @@
+# REAL-FIELD TEMPLATE (Raspberry Pi deployment).
+# Measure every value on the actual field before a match. Marker ids must
+# match the printed AprilTags (tag N -> marker_N by default).
+
+field:
+  length_x: 3.0
+  width_y: 2.0
+
+# Mock localization camera: ~60 deg hfov, forward-facing, 15 cm ahead /
+# 30 cm high (must match CameraParams defaults used by MockMarkerDetector).
+localization_camera:
+  device:
+    type: mock
+    resolution: [1280, 720]
+    fps: 30
+  intrinsic:
+    fx: 615.0
+    fy: 615.0
+    cx: 640.0
+    cy: 360.0
+    distortion: [0.0, 0.0, 0.0, 0.0, 0.0]
+  extrinsic:
+    x: 0.15
+    y: 0.0
+    z: 0.30
+    roll: -1.5708
+    pitch: 0.0
+    yaw: -1.5708
+
+# Mock block camera: 640x480, mounted 10 cm ahead / 30 cm high, tilted
+# down 1.2 rad (~69 deg) so a block ~0.2 m ahead of base (cross-slide
+# grab reach) lands at the image centre (320, 240) — the calibrated
+# grab position. Floor coverage roughly 0.05..0.5 m ahead.
+block_camera:
+  device:
+    type: mock
+    resolution: [640, 480]
+    fps: 30
+  intrinsic:
+    fx: 380.0
+    fy: 380.0
+    cx: 320.0
+    cy: 240.0
+    distortion: [0.0, 0.0, 0.0, 0.0, 0.0]
+  extrinsic:
+    x: 0.10
+    y: 0.0
+    z: 0.30
+    roll: -1.5708
+    pitch: 1.2
+    yaw: -1.5708
+
+# Physical block model used by perception mocks.
+block:
+  size: 0.07        # m, square footprint
+  height: 0.07      # m
+
+markers:
+  - {id: marker_1, name: start_area,    x: 0.7, y: 0.62, yaw: 3.14159, width: 0.15, height: 0.15, z: 0.30}
+  - {id: marker_2, name: junction,      x: 2.1, y: 0.38, yaw: 3.14159, width: 0.15, height: 0.15, z: 0.30}
+  - {id: marker_3, name: material_zone, x: 2.62, y: 0.62, yaw: 3.14159, width: 0.15, height: 0.15, z: 0.30}
+  - {id: marker_4, name: build_gate,    x: 2.38, y: 1.30, yaw: -1.5708, width: 0.15, height: 0.15, z: 0.30}
+  - {id: marker_5, name: build_zone,    x: 2.38, y: 1.95, yaw: -1.5708, width: 0.15, height: 0.15, z: 0.30}
+  - {id: marker_6, name: mid_route,     x: 1.7, y: 0.62, yaw: 3.14159, width: 0.15, height: 0.15, z: 0.30}
+
+towers:
+  A: {x: 2.30, y: 1.75}
+  B: {x: 2.55, y: 1.75}
+  C: {x: 2.80, y: 1.75}
+
+zones:
+  start:    {x: 0.3, y: 0.5}
+  material: {x: 2.9, y: 0.5}
+  build:    {x: 2.55, y: 1.75}
+
+start_pose:
+  x: 0.3
+  y: 0.5
+  yaw: 0.0
+
+blocks:            # initial blocks in the material zone (mock)
+  # Layout: two staggered columns ahead of the material staging node
+  # (2.6, 0.5), each block yawed so it faces the staging point — the
+  # alignment servo can then reach every block from the staging pose
+  # (see MockBlockDetector angle convention). Purple blocks sit at the
+  # column ends, >= 0.25 m from any orange (keeps grab selection unique).
+  - {type: ORANGE,  x: 2.75, y: 0.50, yaw: 0.0}
+  - {type: ORANGE,  x: 2.85, y: 0.40, yaw: -0.262}
+  - {type: ORANGE,  x: 2.85, y: 0.60, yaw: 0.262}
+  - {type: ORANGE,  x: 2.95, y: 0.50, yaw: 0.0}
+  - {type: PURPLE, x: 2.90, y: 0.20, yaw: -0.620}
+  - {type: PURPLE, x: 2.90, y: 0.80, yaw: 0.620}
+
+# Free blocks at match start (from the rulebook) — keeps the planner from
+# chasing an exhausted material zone.
+supply:
+  orange: 16
+  purple: 4

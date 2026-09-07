@@ -1,0 +1,18 @@
+# Localization fusion parameters (encoder odom + IMU + marker correction).
+
+confidence:
+  marker_fresh_max_age: 2.0      # s: marker younger than this -> high conf
+  confidence_decay_rate: 0.02    # per second without markers
+  min_confidence: 0.0
+  max_confidence: 1.0
+  relocalize_threshold: 0.25     # below this Mission enters RELOCALIZE
+  marker_consistency_xy: 0.15    # m: max spread between marker estimates
+  marker_consistency_yaw: 0.175  # rad (~10 deg)
+
+fusion:
+  # how strongly an absolute marker pose replaces dead-reckoning (0..1)
+  marker_correction_gain: 1.0
+
+odom:
+  noise_xy: 0.0     # m per sqrt(m): simulated odometry noise (mock)
+  noise_yaw: 0.0    # rad per sqrt(m)

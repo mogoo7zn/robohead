@@ -1,0 +1,33 @@
+# COMPLETE mock route graph (mock mode only).
+
+route_nodes:
+  start:
+    {x: 0.3, y: 0.5, yaw: 0.0, zone: START, expected_marker: marker_1,
+     arrival_behavior: CONTINUE, next: [mid_1]}
+  mid_1:
+    {x: 1.5, y: 0.5, yaw: 0.0, zone: ROUTE, expected_marker: marker_6,
+     arrival_behavior: CONTINUE, next: [junction, build_gate]}
+  junction:
+    {x: 2.5, y: 0.5, yaw: 0.0, zone: ROUTE, expected_marker: marker_2,
+     arrival_behavior: CONTINUE, next: [material_zone, build_gate]}
+  material_zone:
+    {x: 2.9, y: 0.5, yaw: 0.0, zone: MATERIAL, expected_marker: marker_3,
+     arrival_behavior: ENTER_MANIPULATION, next: [junction]}
+  build_gate:
+    {x: 2.5, y: 1.2, yaw: 1.5708, zone: ROUTE, expected_marker: marker_4,
+     arrival_behavior: CONTINUE, next: [build_zone, junction]}
+  build_zone:
+    {x: 2.55, y: 1.6, yaw: 1.5708, zone: BUILD, expected_marker: marker_5,
+     arrival_behavior: ENTER_MANIPULATION, next: [build_gate]}
+
+route_edges:
+  - {from: start,         to: mid_1,         length: 1.2, speed: 0.35}
+  - {from: mid_1,        to: junction,      length: 1.0, speed: 0.35}
+  - {from: junction,     to: material_zone, length: 0.4, speed: 0.20}
+  - {from: material_zone,to: junction,      length: 0.4, speed: 0.20}
+  - {from: junction,     to: mid_1,        length: 1.0, speed: 0.35}
+  - {from: mid_1,        to: build_gate,    length: 0.7, speed: 0.25}
+  - {from: build_gate,   to: build_zone,    length: 0.5, speed: 0.20}
+  - {from: build_zone,   to: build_gate,    length: 0.5, speed: 0.20}
+  - {from: build_gate,   to: mid_1,        length: 0.7, speed: 0.25}
+  - {from: mid_1,        to: start,        length: 1.2, speed: 0.35}

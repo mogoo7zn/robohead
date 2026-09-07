@@ -1,0 +1,28 @@
+# ROS 2 Jazzy development container for the RoboGame 2026 stack.
+# Builds/compiles ros2_ws without needing ROS on the host (Mac included):
+#   make ros-build
+FROM ros:jazzy-ros-base
+
+ARG USER=ros
+ARG UID=1000
+
+# build tools + python deps for the core stack
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3-pip \
+        python3-numpy \
+        python3-opencv \
+        python3-pyserial \
+        python3-yaml \
+        ros-jazzy-cv-bridge \
+        build-essential \
+        git \
+    && rm -rf /var/lib/apt/lists/*
+
+# non-root user with dialout for UART access
+RUN useradd --create-home --uid ${UID} ${USER} \
+    && usermod -aG dialout ${USER}
+USER ${USER}
+WORKDIR /workspace
+
+# default: an interactive shell with ROS sourced
+CMD ["/bin/bash", "-c", "source /opt/ros/jazzy/setup.bash && exec bash"]

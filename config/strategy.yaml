@@ -1,0 +1,36 @@
+# Strategy / Planner parameters.
+# Competition constraints are fixed by the rules; utility weights are tunable.
+
+match:
+  total_time: 360.0        # s, official match duration
+  normal_end_time: 240.0   # after this -> SAFE phase
+  safe_end_time: 320.0     # after this -> ENDGAME phase
+
+inventory:
+  max_total: 3             # orange + purple <= 3
+  max_purple: 1           # purple roof blocks <= 1
+  purple_as_roof: true    # only grab purple when it completes a full load
+
+utility:
+  # score = expected_score - time_cost * weight - risk_cost * weight
+  expected_score:
+    orange_grab: 10.0
+    purple_grab: 14.0
+    build_layer: 25.0
+    purple_roof_bonus: 1.5   # building score multiplier when purple on top
+  time_cost_weight: 0.05      # per second of estimated task duration
+  risk_cost_weight: 0.4
+
+task_estimates:
+  # seconds, updated from real-robot statistics later
+  acquire_orange: 60.0
+  acquire_purple: 70.0
+  build: 55.0
+
+risk:
+  acquire_orange: 0.10
+  acquire_purple: 0.25
+  build: 0.15
+
+endgame:
+  min_remaining_for_new_task: 45.0  # don't start tasks that cannot finish

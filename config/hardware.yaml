@@ -1,0 +1,23 @@
+# Hardware / transport selection. Mock on Mac, serial on the Pi.
+
+mode: mock               # mock | test | competition
+
+mcu:
+  transport: memory      # memory | serial
+  serial:
+    device: TODO         # e.g. /dev/ttyAMA0 or /dev/serial0 on the Pi
+    baudrate: 115200
+  heartbeat_period: 0.05  # s (Pi -> STM32)
+  heartbeat_timeout: 0.2  # s (STM32 side watchdog)
+
+watchdog:
+  high_level_timeout: 1.0   # s without MCU telemetry -> hardware fault
+  camera_timeout: 5.0       # s without camera frames -> fault
+  localization_timeout: 10.0  # s without localization update -> RECOVERY
+  imu_timeout: 1.0
+  odom_timeout: 1.0
+
+chassis:
+  max_vx: 0.6
+  max_vy: 0.6
+  max_wz: 1.5

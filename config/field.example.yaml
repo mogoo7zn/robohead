@@ -1,0 +1,84 @@
+# Field geometry: markers, towers, zones.
+# !!! REAL VALUES MUST BE MEASURED ON THE ACTUAL FIELD BY THE TEAM !!!
+# Any TODO value is invalid for competition mode (scripts/check_config.py fails).
+
+field:
+  length_x: 3.0    # m, TODO: measure
+  width_y: 2.0     # m, TODO: measure
+
+markers:
+  - id: marker_1
+    name: start_area
+    x: TODO
+    y: TODO
+    yaw: TODO
+    width: 0.15
+    height: 0.15
+    z: 0.20
+  - id: marker_2
+    name: material_entry
+    x: TODO
+    y: TODO
+    yaw: TODO
+    width: 0.15
+    height: 0.15
+    z: 0.20
+  - id: marker_3
+    name: material_zone
+    x: TODO
+    y: TODO
+    yaw: TODO
+    width: 0.15
+    height: 0.15
+    z: 0.20
+  - id: marker_4
+    name: build_entry
+    x: TODO
+    y: TODO
+    yaw: TODO
+    width: 0.15
+    height: 0.15
+    z: 0.20
+  - id: marker_5
+    name: build_zone
+    x: TODO
+    y: TODO
+    yaw: TODO
+    width: 0.15
+    height: 0.15
+    z: 0.20
+  - id: marker_6
+    name: mid_route
+    x: TODO
+    y: TODO
+    yaw: TODO
+    width: 0.15
+    height: 0.15
+    z: 0.20
+
+towers:
+  A:
+    x: TODO
+    y: TODO
+  B:
+    x: TODO
+    y: TODO
+  C:
+    x: TODO
+    y: TODO
+
+zones:
+  start:
+    x: TODO
+    y: TODO
+  material:
+    x: TODO
+    y: TODO
+  build:
+    x: TODO
+    y: TODO
+
+start_pose:
+  x: TODO
+  y: TODO
+  yaw: TODO

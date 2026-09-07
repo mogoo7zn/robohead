@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "robogame"
+version = "0.1.0"
+description = "RoboGame 2026 competition robot software framework (ROS-independent core + mock)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "numpy>=1.24",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+# OpenCV is only needed by real camera / marker / block detection backends.
+# All logic-level tests run without it via the numpy fallbacks and mocks.
+vision = ["opencv-python-headless>=4.8"]
+serial = ["pyserial>=3.5"]
+dev = [
+    "pytest>=7.0",
+    "opencv-python-headless>=4.8",
+    "pyserial>=3.5",
+]
+
+[tool.setuptools.packages.find]
+include = ["core*", "mock*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
