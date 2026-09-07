@@ -1,14 +1,23 @@
 # RoboGame 2026 — 机器人软件框架
 
+[![CI](https://github.com/mogoo7zn/robohead/actions/workflows/ci.yml/badge.svg)](https://github.com/mogoo7zn/robohead/actions/workflows/ci.yml)
+
 RoboGame 2026 竞技机器人的完整软件栈。设计目标：
 
-1. **Mac 上完成绝大部分开发与测试**（无硬件跑完整模拟比赛）
+1. **在开发机上完成绝大部分开发与测试**（Linux / WSL2 / macOS，无硬件跑完整模拟比赛）
 2. **无真实硬件也能跑完整流程**（Mock 后端）
-3. **上传 GitHub 后，队友在 Raspberry Pi + STM32 + 实车上逐个接入真实硬件**
+3. **团队经 GitHub 协作，在 Raspberry Pi + STM32 + 实车上逐个接入真实硬件**
 4. **替换真实硬件时零重写 Planner / HFSM / WorldState 等顶层代码**
 5. **所有硬件相关模块有明确接口 + Mock + 实机 Backend**
 
-## 快速开始（Mac，无需任何硬件）
+## 快速开始（无需任何硬件）
+
+环境要求：Python ≥ 3.10、git、GNU make。
+Windows 用户请使用 WSL2（推荐 Ubuntu 22.04+），首次使用前安装 Python 基础工具：
+
+```bash
+sudo apt update && sudo apt install -y python3-venv python3-pip
+```
 
 ```bash
 make setup     # 创建 .venv 并安装依赖（含 opencv/numpy/pyyaml/pytest）
@@ -22,7 +31,7 @@ make mock      # 跑一场完整模拟比赛
 
 ## 架构
 
-```
+```text
 ┌───────────────────────────────────────────────────────────┐
 │ 任务层  Planner / HFSM / MatchManager / Watchdog           │  纯决策
 ├───────────────────────────────────────────────────────────┤
@@ -34,7 +43,7 @@ make mock      # 跑一场完整模拟比赛
 └───────────────────────────────────────────────────────────┘
 ```
 
-**核心原则**
+### 核心原则
 
 - **WorldState 单写者**：所有状态变更只能通过 `WorldStateStore.apply_event()`
   （事件在 `core/state/events.py`），读取用不可变 `snapshot()`。
@@ -43,7 +52,7 @@ make mock      # 跑一场完整模拟比赛
 
 ## 换硬件 = 换叶子
 
-| 接口 | Mock（Mac） | 实机（Pi） |
+| 接口 | Mock（开发机） | 实机（Pi） |
 |---|---|---|
 | `Transport` | `MemoryTransport` + `FakeSTM32` | `SerialTransport`（hardware.yaml） |
 | `MarkerDetector` | `MockMarkerDetector` | `CameraMarkerDetector`（AprilTag） |
@@ -52,7 +61,7 @@ make mock      # 跑一场完整模拟比赛
 
 两条入口共用同一装配（`core/mission/stack.py` 的 `MissionStack`）：
 
-- Mac：`python -m mock.runner`
+- 开发机（Linux / WSL2 / macOS）：`python -m mock.runner`
 - Pi：`ros2 launch robogame_bringup mission.launch.py`
 
 ## Raspberry Pi 部署
@@ -90,7 +99,7 @@ core/     核心包（硬件无关，含 mock 后端）
   skill/           Alignment / Grab / Place 技能
   manipulation/    机械臂序列器（走协议）
   mock/            SimWorld / FakeSTM32（物理仿真）
-mock/     Mac 上的完整模拟比赛入口
+mock/     开发机上的完整模拟比赛入口
 ros2_ws/src/
   robogame_interfaces/   ROS msg 定义
   robogame_adapters/     相机后端（AprilTag / HSV）
@@ -116,9 +125,12 @@ CI 会校验漂移（`--check`）。
 make test                  # 全部
 pytest tests/unit -q       # 单元（含 ROS 适配器，无需安装 ROS）
 pytest tests/protocol -q   # 协议/CRC/流解析
-pytest tests/integration -q# 端到端模拟比赛
+pytest tests/integration -q  # 端到端模拟比赛
 make check-config          # 配置完整性（TODO 残留/图连通性/相机参数）
 ```
+
+CI（GitHub Actions）在 ubuntu / macos × Python 3.11 / 3.12 上自动执行
+同一套测试、模拟比赛与配置校验；推送前本地 `make test` 通过即可。
 
 ## 文档
 
