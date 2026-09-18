@@ -122,7 +122,7 @@ class MockMissionRunner:
             telemetry_period=self.dt,
             gripper_duration=float(
                 manip_cfg.get("gripper", {}).get("close_time", 1.0)),
-            watchdog_timeout=float(mcu_cfg.get("heartbeat_timeout", 0.2)))
+            watchdog_timeout=float(mcu_cfg.get("cmd_vel_timeout", 0.2)))
 
         # ---- perception mocks (render SimWorld through camera models) ----
         marker_map = MarkerMap.from_config(field_cfg)
@@ -183,10 +183,10 @@ class MockMissionRunner:
             if t >= next_marker_time:
                 next_marker_time = t + self.marker_period
                 markers = self.stack.marker_detector.detect(t)
-            # start button rises inside SimWorld; telemetry carries it
+            # competition start signal (no protocol message — doc §8)
             if t >= next_start_button:
                 next_start_button = math.inf
-                self.world.start_button = True
+                self.stack.start_match()
             outcome = self.stack.tick(markers)
 
             if int(t / self.dt) % int(1.0 / self.dt) == 0:   # ~1 Hz

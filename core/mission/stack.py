@@ -106,15 +106,11 @@ class MissionStack:
         if transport is None:
             transport = create_transport(hw_cfg.get("mcu", {}))
         self.transport = transport
-        mcu_cfg = hw_cfg.get("mcu", {})
-        self.client = McuClient(
-            transport, clock,
-            heartbeat_period=float(mcu_cfg.get("heartbeat_period", 0.05)))
-        self.heartbeat_timeout = float(mcu_cfg.get("heartbeat_timeout", 0.2))
+        self.client = McuClient(transport, clock)
 
         # ---- hardware-bridge backends (over the protocol) ----------------
-        self.chassis = McuChassis(self.client)
-        manip_backend = McuManipulator(self.client)
+        self.chassis = McuChassis(self.client, nav_cfg.get("line_follow", {}))
+        manip_backend = McuManipulator(self.client, clock)
         self.sequencer = ManipulatorSequencer(manip_backend, manip_cfg, clock)
         self.grab_skill = GrabSkill(self.sequencer, manip_cfg.get("grab"), clock)
         self.place_skill = PlaceSkill(self.sequencer, self.chassis,
@@ -173,6 +169,17 @@ class MissionStack:
             expected_marker=marker, line_follow_active=True))
 
     # --------------------------------------------------------------- pipeline
+    def start_match(self) -> None:
+        """Start the match clock (competition start signal).
+
+        Protocol v1.1 carries no start button: on the real robot this is
+        triggered by the ROS `~/start_match` service; the mock runner
+        calls it directly.
+        """
+        if not self.match.started:
+            self.match.start()
+            log.info("match started at t=%.1fs", self.clock.now())
+
     def tick_sensors(self,
                      marker_detections: list[MarkerObservation] | None = None
                      ) -> None:
@@ -187,9 +194,7 @@ class MissionStack:
 
         self.localization.update_odometry(
             Pose2D(tele.odom.x, tele.odom.y, tele.odom.yaw))
-        self.localization.update_imu_yaw(tele.imu.yaw)
         self.watchdog.observe_odom()
-        self.watchdog.observe_imu()
         self.watchdog.observe_localization()
         if self.client.link_alive:
             self.watchdog.observe_mcu()
@@ -201,11 +206,6 @@ class MissionStack:
         self.store.apply_event(PoseUpdatedEvent(
             pose=self.localization.pose,
             confidence=self.localization.confidence))
-
-        # start signal: start button -> match clock
-        if tele.start_button and not self.match.started:
-            self.match.start()
-            log.info("match started at t=%.1fs", self.clock.now())
 
     def tick_mission(self) -> str | None:
         """Advance the match clock one step and tick the HFSM."""

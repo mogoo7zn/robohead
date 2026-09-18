@@ -67,7 +67,7 @@ def test_match_tick_updates_worldstate():
 def _watchdog(clock, store, cfg=None):
     return Watchdog(store, clock, cfg or {"watchdog": {
         "high_level_timeout": 1.0, "camera_timeout": 5.0,
-        "localization_timeout": 10.0, "imu_timeout": 1.0, "odom_timeout": 1.0}})
+        "localization_timeout": 10.0, "odom_timeout": 1.0}})
 
 
 def test_watchdog_ok_when_everything_fresh():
@@ -78,7 +78,6 @@ def test_watchdog_ok_when_everything_fresh():
     wd.observe_localization_camera()
     wd.observe_block_camera()
     wd.observe_localization()
-    wd.observe_imu()
     wd.observe_odom()
     assert wd.tick() is WatchdogVerdict.OK
     snap = store.snapshot()

@@ -159,14 +159,13 @@ def check_hardware() -> None:
     transport = mcu.get("transport")
     if transport not in ("memory", "serial"):
         error(f"{name}/mcu: transport must be memory|serial, got {transport}")
+    serial_cfg = mcu.get("serial", {})
     if transport == "serial":
-        serial_cfg = mcu.get("serial", {})
         device = serial_cfg.get("device")
         if not device or device == "TODO":
             error(f"{name}/mcu/serial: device is TODO — set it before "
                   "running on the robot")
-    for key in ("heartbeat_period", "heartbeat_timeout"):
-        require(mcu, key, f"{name}/mcu")
+        require(serial_cfg, "cmd_vel_timeout", f"{name}/mcu/serial")
 
 
 # ---------------------------------------------------------------- others

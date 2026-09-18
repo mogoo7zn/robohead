@@ -2,11 +2,11 @@
 
 Simulates:
   * chassis kinematics (velocity / line-follow commands)
-  * wheel odometry with optional drift
+  * wheel odometry with optional drift (continuous heading, protocol v1.1)
   * the dedicated line sensor (lateral error w.r.t. line segments)
-  * a simple STM32-side line-follow PID controller
-  * the cross-slide + gripper with realistic timing
-  * start button
+  * a built-in line-follow controller (used by the MockChassis unit-test
+    path; the full-stack mock closes the loop on the Pi side instead)
+  * the lift + gripper with realistic timing
 
 It backs FakeSTM32 so the whole mission runs without any hardware.
 """
@@ -40,15 +40,20 @@ class LineSegment:
                 self.y1 + (self.y2 - self.y1) * t)
 
     def project(self, x: float, y: float) -> tuple[float, float]:
-        """Return (arc_length_of_projection, signed_lateral_error)."""
+        """Return (arc_length_of_projection, signed_lateral_error).
+
+        The lateral error is a true metric distance (perpendicular to the
+        segment), positive to the right of the travel direction (the
+        protocol §6.2 offset sign: robot right of the line = positive).
+        """
         dx, dy = self.x2 - self.x1, self.y2 - self.y1
         L2 = dx * dx + dy * dy
         if L2 <= 1e-12:
             return 0.0, math.hypot(x - self.x1, y - self.y1)
         t = ((x - self.x1) * dx + (y - self.y1) * dy) / L2
         t_clamped = max(0.0, min(1.0, t))
-        lateral = (x - self.x1) * dy - (y - self.y1) * dx  # signed cross product
-        return t_clamped * math.sqrt(L2), lateral
+        cross = (x - self.x1) * dy - (y - self.y1) * dx   # |b| * distance
+        return t_clamped * math.sqrt(L2), cross / math.sqrt(L2)
 
 
 @dataclass
@@ -81,12 +86,12 @@ class SimWorld:
     line_confidence: float = 0.0
     line_lost_time: float = 0.0
 
-    # odometry (what the MCU reports — may drift from robot_pose)
+    # odometry (what the MCU reports — may drift from robot_pose).
+    # odom_yaw is continuous (never wrapped) per protocol v1.1 §4.
     odom_x: float = 0.0
     odom_y: float = 0.0
     odom_yaw: float = 0.0
     odom_drift_rate: float = 0.0        # fraction of distance added as error
-    imu_yaw: float = 0.0
     _odom_distance: float = 0.0
 
     # manipulator
@@ -107,7 +112,6 @@ class SimWorld:
 
     # environment
     blocks: list[SimBlock] = field(default_factory=list)
-    start_button: bool = False
     held_block: SimBlock | None = None     # block currently in the gripper
     place_radius: float = 0.30            # m: tower within this when releasing
 
@@ -124,7 +128,6 @@ class SimWorld:
         self.stopped = True
         self.line_follow_active = False
         self.odom_x, self.odom_y, self.odom_yaw = pose.x, pose.y, pose.yaw
-        self.imu_yaw = pose.yaw
         self._odom_distance = 0.0
         self._line_integral = 0.0
         self._prev_line_error = 0.0
@@ -169,8 +172,8 @@ class SimWorld:
             oc, os_ = math.cos(self.odom_yaw + half), math.sin(self.odom_yaw + half)
             self.odom_x += (vx * oc - vy * os_) * dt + drift * 0.5
             self.odom_y += (vx * os_ + vy * oc) * dt + drift * 0.3
-            self.odom_yaw = normalize_angle(self.odom_yaw + wz * dt + drift * 0.2)
-            self.imu_yaw = normalize_angle(self.robot_pose.yaw)  # IMU: unbiased heading
+            # continuous accumulated heading — protocol v1.1 §4 (no wrap)
+            self.odom_yaw += wz * dt + drift * 0.2
 
     def _pursuit_wz(self) -> float:
         """Yaw rate steering to a lookahead point on the tracked segment."""
@@ -188,27 +191,54 @@ class SimWorld:
         return max(-1.5, min(1.5, kp * err))
 
     def _update_line_sensor(self, dt: float) -> None:
-        """Pick the segment closest to the robot and report an egocentric
-        lateral error (positive = robot right of the travel direction).
+        """Pick the segment to track and report an egocentric lateral
+        error (positive = robot right of the travel direction).
 
-        Overlapping reverse-direction segments of the same physical line
-        must not flip the error sign, so the lateral value is referred to
-        the robot's heading: segments anti-aligned with the heading get
-        their sign flipped before comparison.
+        At branching nodes several segments start at the same point, so
+        "closest line" is arbitrary there. Among lines physically under
+        the sensor prefer, in order: one whose span contains the robot
+        (an exhausted segment behind the robot would aim the
+        pure-pursuit lookahead backwards and spin it), the one most
+        aligned with the heading, then the closest. This mirrors the
+        real robot where the navigator turns onto a branch before
+        following it. If no line is under the sensor, fall back to the
+        globally closest one so the lost-line creep-back still steers
+        toward a real line.
+
+        Detection requires the projection to fall INSIDE the segment's
+        span (t in [0,1]): a line sensor only sees the physical tape
+        under it, never the infinite extension of a segment past its
+        end. Without this, a robot running past a segment's endpoint
+        keeps "seeing" a ghost line and follows it off the field.
         """
+        best_key = None
         best_lateral = None
         best_seg, best_dir = None, 1
+        best_exhausted = False
+        cos_y = math.cos(self.robot_pose.yaw)
+        sin_y = math.sin(self.robot_pose.yaw)
         for seg in self.line_segments:
-            _, lateral = seg.project(self.robot_pose.x, self.robot_pose.y)
+            length = seg.length
+            if length <= 1e-9:
+                continue
+            x, y = self.robot_pose.x, self.robot_pose.y
+            _, lateral = seg.project(x, y)
             dx, dy = seg.x2 - seg.x1, seg.y2 - seg.y1
-            along = (math.cos(self.robot_pose.yaw) * dx
-                     + math.sin(self.robot_pose.yaw) * dy)
+            t = ((x - seg.x1) * dx + (y - seg.y1) * dy) / (length * length)
+            exhausted = 0.0 if -1e-6 <= t <= 1.0 + 1e-6 else 1.0
+            along = (cos_y * dx + sin_y * dy) / length  # -1..1 alignment
             direction = 1 if along >= 0.0 else -1
             if along < 0.0:
                 lateral = -lateral
-            if best_lateral is None or abs(lateral) < abs(best_lateral):
+            if abs(lateral) <= self.line_sensor_half_width:
+                key = (1, -exhausted, abs(along), -abs(lateral))
+            else:
+                key = (0, -abs(lateral), 0.0, 0.0)
+            if best_key is None or key > best_key:
+                best_key = key
                 best_lateral = lateral
                 best_seg, best_dir = seg, direction
+                best_exhausted = exhausted > 0.0
         self._tracked_segment = best_seg
         self._tracked_dir = best_dir
         if best_lateral is None:
@@ -216,13 +246,19 @@ class SimWorld:
             self.line_error = 0.0
             self.line_confidence = 0.0
             return
-        self.line_error = best_lateral
-        within = abs(best_lateral) <= self.line_sensor_half_width
+        within = (not best_exhausted
+                  and abs(best_lateral) <= self.line_sensor_half_width)
         if within:
+            self.line_error = best_lateral
             self.line_detected = True
             self.line_confidence = max(0.0, 1.0 - abs(best_lateral) / self.line_sensor_half_width)
             self.line_lost_time = 0.0
         else:
+            # Keep the last line_error: a real sensor array reports the
+            # last valid offset when no line is under it, and the host's
+            # lost-line creep steers back toward that reading. Reporting
+            # the closest line anywhere in the field would jump between
+            # branches where lines cross and send the creep in circles.
             self.line_confidence = max(0.0, 1.0 - abs(best_lateral) / (2 * self.line_sensor_half_width))
             if self.line_detected:
                 self.line_lost_time += dt

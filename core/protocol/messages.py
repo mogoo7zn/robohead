@@ -1,10 +1,16 @@
 """Protocol message definitions — SINGLE SOURCE OF TRUTH.
 
+Matches docs/downward/robohead_transmission_protocol.md (v1.1) exactly.
 The same table drives:
   * Python payload encode/decode (this file)
   * firmware/stm32/include/robogame_protocol.h (via scripts/gen_protocol_header.py)
 
+Frame layout (little endian):
+  SOF(2) VER(1) MSG_ID(1) SEQ(1) LEN(1) PAYLOAD CRC16(2, LE)
+CRC-16/CCITT-FALSE over VER..PAYLOAD.
+
 All payload fields are little-endian, struct-packed, unaligned (packed).
+Units are integers: mm, mm/s, mrad, mrad/s — never floats on the wire.
 """
 from __future__ import annotations
 
@@ -15,9 +21,9 @@ from dataclasses import dataclass
 SOF1 = 0xAA
 SOF2 = 0x55
 VERSION = 0x01
-HEADER_SIZE = 7          # SOF(2) + VERSION(1) + SEQ(1) + MSG_ID(1) + LEN(2)
+HEADER_SIZE = 6          # SOF(2) + VER(1) + MSG_ID(1) + SEQ(1) + LEN(1)
 CRC_SIZE = 2
-MAX_PAYLOAD = 256
+MAX_PAYLOAD = 255        # LEN is a single byte
 
 # struct fmt -> (python type, C type, size)
 _C_TYPES = {
@@ -62,20 +68,41 @@ class MessageSpec:
         return struct.calcsize(self.struct_fmt) if self.fields else 0
 
 
-# Axis codes for CMD_LINEAR_AXIS / CMD_HOME
-AXIS_X = 0
-AXIS_Z = 1
-AXIS_ALL = 0xFF
+# ---------------------------------------------------------------- enums
+# CMD_ACTION action_id (protocol doc §5.2)
+ACTION_GRIPPER_OPEN = 0x01     # param reserved (0)
+ACTION_GRIPPER_CLOSE = 0x02    # param reserved (0)
+ACTION_LIFT_UP = 0x03          # param = target height mm (0 = top limit)
+ACTION_LIFT_DOWN = 0x04        # param = target height mm (0 = bottom limit)
+ACTION_STOP_ALL = 0x05         # param reserved (0): stop gripper/lift, zero chassis
 
-# Gripper commands
-GRIPPER_OPEN = 0
-GRIPPER_CLOSE = 1
+# ROBOT_STATE motor_state (protocol doc §6.3)
+MOTOR_DISABLED = 0
+MOTOR_IDLE = 1
+MOTOR_RUNNING = 2
+MOTOR_TIMEOUT = 3
+MOTOR_FAULT = 4
 
-# Line-follow controller states (STM32 side)
-LINE_CTRL_IDLE = 0
-LINE_CTRL_RUNNING = 1
-LINE_CTRL_LOST = 2
-LINE_CTRL_FAULT = 3
+# ROBOT_STATE gripper_state
+GRIPPER_UNKNOWN = 0
+GRIPPER_OPENED = 1
+GRIPPER_CLOSED = 2
+GRIPPER_HOLDING = 3
+GRIPPER_FAULT = 4
+
+# ROBOT_STATE lift_state
+LIFT_UNKNOWN = 0
+LIFT_IDLE = 1
+LIFT_MOVING_UP = 2
+LIFT_MOVING_DOWN = 3
+LIFT_FAULT = 4
+
+# ROBOT_STATE error_code bits
+ERR_CHASSIS = 0x01
+ERR_GRIPPER = 0x02
+ERR_LIFT = 0x04
+ERR_COMM_TIMEOUT = 0x08
+ERR_LOW_BATTERY = 0x10
 
 
 MESSAGES: dict[str, MessageSpec] = {}
@@ -89,85 +116,34 @@ def _register(name: str, msg_id: int, direction: str, *fields: FieldSpec) -> Non
 
 
 # ---------------------------------------------------------------- Pi -> STM32
-_register("HEARTBEAT", 0x01, "pi_to_mcu",
-          FieldSpec("uptime_ms", "I", "Pi uptime in ms"))
+_register("CMD_VEL", 0x01, "pi_to_mcu",
+          FieldSpec("vx_mm_s", "h", "body forward velocity mm/s"),
+          FieldSpec("vy_mm_s", "h", "body lateral velocity mm/s (left +)"),
+          FieldSpec("wz_mrad_s", "h", "yaw rate mrad/s (ccw +)"))
 
-_register("CMD_STOP", 0x02, "pi_to_mcu",
-          FieldSpec("mode", "B", "0=soft stop, 1=brake"))
-
-_register("CMD_VELOCITY", 0x03, "pi_to_mcu",
-          FieldSpec("vx", "f", "body forward velocity m/s"),
-          FieldSpec("vy", "f", "body lateral velocity m/s"),
-          FieldSpec("wz", "f", "yaw rate rad/s"))
-
-_register("CMD_LINE_FOLLOW_START", 0x04, "pi_to_mcu",
-          FieldSpec("segment_id", "H", "route segment identifier"),
-          FieldSpec("target_speed", "f", "m/s"))
-
-_register("CMD_LINE_FOLLOW_STOP", 0x05, "pi_to_mcu")
-
-_register("CMD_LINE_FOLLOW_CONFIG", 0x06, "pi_to_mcu",
-          FieldSpec("kp", "f"),
-          FieldSpec("ki", "f"),
-          FieldSpec("kd", "f"))
-
-_register("CMD_LINEAR_AXIS", 0x07, "pi_to_mcu",
-          FieldSpec("axis", "B", "0=X, 1=Z"),
-          FieldSpec("position_mm", "f", "target position"),
-          FieldSpec("speed", "f", "mm/s, 0=default"))
-
-_register("CMD_GRIPPER", 0x08, "pi_to_mcu",
-          FieldSpec("command", "B", "0=open, 1=close"))
-
-_register("CMD_HOME", 0x09, "pi_to_mcu",
-          FieldSpec("axis", "B", "0=X, 1=Z, 0xFF=all"))
+_register("CMD_ACTION", 0x02, "pi_to_mcu",
+          FieldSpec("action_id", "B", "ACTION_* constant"),
+          FieldSpec("param", "h", "action parameter (see protocol doc)"))
 
 # ---------------------------------------------------------------- STM32 -> Pi
-_register("MCU_HEARTBEAT", 0x81, "mcu_to_pi",
-          FieldSpec("uptime_ms", "I"),
-          FieldSpec("fault_flags", "I", "bitmask"))
+_register("ODOM", 0x81, "mcu_to_pi",
+          FieldSpec("x_mm", "i", "accumulated position, world frame"),
+          FieldSpec("y_mm", "i"),
+          FieldSpec("theta_mrad", "i", "continuous heading, never wrapped"),
+          FieldSpec("vx_mm_s", "h", "actual body velocity"),
+          FieldSpec("vy_mm_s", "h"),
+          FieldSpec("wz_mrad_s", "h"))
 
-_register("ODOMETRY", 0x82, "mcu_to_pi",
-          FieldSpec("x", "f", "map frame, m"),
-          FieldSpec("y", "f"),
-          FieldSpec("yaw", "f", "rad"),
-          FieldSpec("vx", "f", "body frame, m/s"),
-          FieldSpec("vy", "f"),
-          FieldSpec("wz", "f", "rad/s"))
+_register("LINE_SENSOR", 0x82, "mcu_to_pi",
+          FieldSpec("line_detected", "B", "0=lost, 1=detected"),
+          FieldSpec("offset_mm", "h", "lateral offset, right of travel dir +"),
+          FieldSpec("confidence", "B", "0..100"))
 
-_register("IMU", 0x83, "mcu_to_pi",
-          FieldSpec("yaw", "f", "integrated heading rad"),
-          FieldSpec("gyro_z", "f", "rad/s"),
-          FieldSpec("accel_x", "f", "m/s^2"),
-          FieldSpec("accel_y", "f", "m/s^2"))
-
-_register("LINE_STATE", 0x84, "mcu_to_pi",
-          FieldSpec("line_detected", "B"),
-          FieldSpec("line_error", "f", "normalized lateral error"),
-          FieldSpec("confidence", "f", "0..1"),
-          FieldSpec("controller_state", "B", "0=idle 1=running 2=lost 3=fault"),
-          FieldSpec("intersection_detected", "B"),
-          FieldSpec("fault", "B"))
-
-_register("MANIPULATOR_STATE", 0x85, "mcu_to_pi",
-          FieldSpec("x_mm", "f"),
-          FieldSpec("z_mm", "f"),
-          FieldSpec("homed", "B"),
-          FieldSpec("gripper_state", "B", "0=unknown 1=open 2=closed 3=holding 4=fault"),
-          FieldSpec("grip_detected", "B"),
-          FieldSpec("moving", "B"),
-          FieldSpec("fault", "B"),
-          FieldSpec("fault_code", "I"))
-
-_register("LIMIT_STATE", 0x86, "mcu_to_pi",
-          FieldSpec("bitmask", "I", "limit switch bitmap"))
-
-_register("FAULT", 0x87, "mcu_to_pi",
-          FieldSpec("fault_code", "I"),
-          FieldSpec("detail", "I"))
-
-_register("START_EVENT", 0x88, "mcu_to_pi",
-          FieldSpec("button_state", "B", "1=pressed"))
+_register("ROBOT_STATE", 0x83, "mcu_to_pi",
+          FieldSpec("motor_state", "B", "MOTOR_* constant"),
+          FieldSpec("gripper_state", "B", "GRIPPER_* constant"),
+          FieldSpec("lift_state", "B", "LIFT_* constant"),
+          FieldSpec("error_code", "B", "ERR_* bitmask"))
 
 
 def spec_by_id(msg_id: int) -> MessageSpec | None:

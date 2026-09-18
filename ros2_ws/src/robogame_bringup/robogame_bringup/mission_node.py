@@ -18,7 +18,7 @@ Wiring summary (all shared code):
 
 Run:
   ros2 run robogame_bringup mission_node --ros-args \
-      -p config_dir:=/home/pi/robogame/config \
+      -p config_dir:=/home/pi/robogame \
       -p field_file:=real_field.yaml
 """
 from __future__ import annotations
@@ -29,6 +29,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
+from std_srvs.srv import Trigger
 
 from robogame_interfaces.msg import MissionStatus, Pose2D
 from robogame_adapters import (
@@ -60,13 +61,20 @@ class MissionNode(Node):
         self.declare_parameter("publish_period", 1.0)       # status 1 Hz
 
         config_dir = str(self.get_parameter("config_dir").value)
+        # The launch file / start_robot.sh pass the repository root
+        # (".../robogame"); MissionStack and the config loader expect the
+        # config/ directory itself. Accept either form.
+        if os.path.isdir(os.path.join(config_dir, "config")):
+            cfg_dir = os.path.join(config_dir, "config")
+        else:
+            cfg_dir = config_dir
         field_file = str(self.get_parameter("field_file").value)
         period = float(self.get_parameter("control_period").value)
         loc_topic = str(self.get_parameter("localization_camera_topic").value)
         blk_topic = str(self.get_parameter("block_camera_topic").value)
 
         # ------------------------------------------------------- perception
-        perc_cfg = load_yaml(f"{config_dir}/perception.yaml")
+        perc_cfg = load_yaml(f"{cfg_dir}/perception.yaml")
         self.marker_detector = CameraMarkerDetector(
             perc_cfg.get("marker_detector"))
         self.block_detector = CameraBlockDetector(
@@ -76,7 +84,7 @@ class MissionNode(Node):
         # transport=None -> SerialTransport from hardware.yaml
         self.clock = RealClock()
         self.stack = MissionStack(
-            config_dir, self.clock,
+            cfg_dir, self.clock,
             marker_detector=self.marker_detector,
             block_detector=self.block_detector,
             field_file=field_file)
@@ -94,6 +102,10 @@ class MissionNode(Node):
         self.status_pub = self.create_publisher(
             MissionStatus, "robogame/mission_status", 10)
 
+        # competition start signal (no protocol message — doc §8):
+        #   ros2 service call /robogame_mission/start_match std_srvs/srv/Trigger
+        self.create_service(Trigger, "start_match", self._on_start_match)
+
         self._control_timer = self.create_timer(period, self._control_tick)
         self._publish_timer = self.create_timer(
             float(self.get_parameter("publish_period").value),
@@ -101,7 +113,15 @@ class MissionNode(Node):
 
         self.get_logger().info(
             f"mission node up: config={config_dir} field={field_file} "
-            f"period={period}s loc_cam={loc_topic} blk_cam={blk_topic}")
+            f"period={period}s loc_cam={loc_topic} blk_cam={blk_topic} "
+            f"(start via: ros2 service call /robogame_mission/start_match "
+            "std_srvs/srv/Trigger)")
+
+    def _on_start_match(self, request, response) -> Trigger.Response:
+        self.stack.start_match()
+        response.success = True
+        response.message = "match started"
+        return response
 
     # -------------------------------------------------------- camera input
     def _on_loc_frame(self, msg: Image) -> None:

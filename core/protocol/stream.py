@@ -63,7 +63,7 @@ class StreamParser:
                 if "CRC" in reason:
                     self.stats.crc_errors += 1
                     # consume the whole bad frame to keep sync
-                    length = self._buf[5] | (self._buf[6] << 8)
+                    length = self._buf[5]
                     total = HEADER_SIZE + length + 2
                     del self._buf[:total]
                 elif "version" in reason:

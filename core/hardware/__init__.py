@@ -6,16 +6,16 @@ from core.hardware.transport import (
     create_transport,
 )
 from core.hardware.mcu_client import (
-    ImuSample,
-    LineFollowStatus,
+    LineSensorSample,
     McuClient,
     McuTelemetry,
     OdometrySample,
+    RobotState,
 )
 
 __all__ = [
     "MemoryTransport", "SerialTransport", "Transport", "TransportError",
     "create_transport",
-    "ImuSample", "LineFollowStatus", "McuClient", "McuTelemetry",
-    "OdometrySample",
+    "LineSensorSample", "McuClient", "McuTelemetry",
+    "OdometrySample", "RobotState",
 ]

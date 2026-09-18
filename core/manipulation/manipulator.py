@@ -1,11 +1,15 @@
-"""Manipulator subsystem: cross-slide X/Z axes + gripper.
+"""Manipulator subsystem: lift axis + gripper (protocol v1.1 robot).
 
 ManipulatorCommander is the hardware interface. Implementations:
-  * McuManipulator (Pi): wraps McuClient (binary protocol -> STM32)
+  * McuManipulator (Pi): wraps McuClient (CMD_ACTION -> STM32)
   * SimManipulator (Mac/CI): reads/writes SimWorld directly
 
 Skills (grab/place) only ever see the interface, so swapping the backend
 changes nothing above it.
+
+Note: protocol v1.1 has no X slide — the robot is chassis + lift + gripper.
+move_axis("X", ...) is accepted (skills still specify x/z positions) but
+forwarded as a no-op; z maps onto the lift (丝杆).
 """
 from __future__ import annotations
 
@@ -14,6 +18,12 @@ from typing import Protocol
 
 from core.model.enums import GripperState
 from core.mock.sim_world import SimWorld
+from core.protocol import (
+    ACTION_LIFT_DOWN,
+    ACTION_LIFT_UP,
+    ERR_GRIPPER,
+    ERR_LIFT,
+)
 from core.utils.clock import Clock, FakeClock
 from core.utils.log import get_logger
 
@@ -49,19 +59,46 @@ class ManipulatorCommander(Protocol):
 
 
 class McuManipulator:
-    """Real backend: forwards commands through McuClient and reads back
-    MANIPULATOR_STATE telemetry."""
+    """Real backend: commands via CMD_ACTION, state via ROBOT_STATE.
 
-    def __init__(self, client) -> None:
+    ROBOT_STATE carries no axis position, so commanded positions are
+    mirrored locally; completion is detected from lift_state transitions
+    (MOVING_* -> IDLE) reported at 10 Hz. Because the state report lags
+    the command by up to one 10 Hz period, a short grace window after
+    each lift command keeps `moving` true until the report catches up.
+    """
+
+    GRACE_S = 0.25   # > one 10 Hz ROBOT_STATE period
+
+    def __init__(self, client, clock: Clock) -> None:
         self._client = client
+        self._clock = clock
+        self._cmd_x = 0.0
+        self._cmd_z = 0.0
+        self._homing = False
+        self._homed = False
+        self._last_lift_cmd = float("-inf")
+        self._warned_no_x = False
 
     def home(self) -> None:
-        self._client.send_home()
+        self._homing = True
+        self._homed = False
+        self._cmd_z = 0.0
+        self._last_lift_cmd = self._clock.now()
+        self._client.send_action(ACTION_LIFT_DOWN, 0)   # bottom limit = home
 
     def move_axis(self, axis: str, position_mm: float,
                   speed: float = 0.0) -> None:
-        code = 0 if axis == AXIS_X else 1
-        self._client.send_linear_axis(code, position_mm, speed)
+        if axis == AXIS_X:
+            if not self._warned_no_x:
+                log.warning("move_axis(X): robot has no X slide — ignored")
+                self._warned_no_x = True
+            self._cmd_x = position_mm
+            return
+        action = ACTION_LIFT_UP if position_mm > self._cmd_z else ACTION_LIFT_DOWN
+        self._cmd_z = position_mm
+        self._last_lift_cmd = self._clock.now()
+        self._client.send_action(action, int(position_mm))
 
     def gripper_close(self) -> None:
         self._client.send_gripper(close=True)
@@ -70,13 +107,19 @@ class McuManipulator:
         self._client.send_gripper(close=False)
 
     def state(self) -> ManipulatorState:
-        t = self._client.telemetry
+        t = self._client.telemetry.state
+        in_grace = (self._clock.now() - self._last_lift_cmd) < self.GRACE_S
+        moving = t.lift_moving or in_grace
+        if self._homing and not moving:
+            self._homing = False
+            self._homed = True
         return ManipulatorState(
-            x_mm=t.manipulator_x_mm, z_mm=t.manipulator_z_mm,
-            homed=t.manipulator_homed, gripper=t.manipulator_gripper,
-            grip_detected=t.manipulator_grip_detected,
-            moving=t.manipulator_moving, fault=t.manipulator_fault,
-        )
+            x_mm=self._cmd_x, z_mm=self._cmd_z,
+            homed=self._homed,
+            gripper=t.gripper,
+            grip_detected=t.gripper is GripperState.HOLDING,
+            moving=moving,
+            fault=bool(t.error_code & (ERR_GRIPPER | ERR_LIFT)))
 
 
 class SimManipulator:

@@ -11,6 +11,7 @@ venv/
 .mypy_cache/
 .ruff_cache/
 .coverage
+.coverage.*
 htmlcov/
 
 # ROS 2 / colcon (build from repo root or ros2_ws)
@@ -20,10 +21,30 @@ ros2_ws/log/
 install/
 log/
 
+# STM32 / embedded build artifacts
+firmware/**/Debug/
+firmware/**/Release/
+*.elf
+*.hex
+*.axf
+*.map
+*.lst
+*.o
+*.d
+
 # IDE / OS
 .idea/
 .vscode/
+.agent/
 .DS_Store
+Thumbs.db
+Desktop.ini
+
+# SSH deploy keys (local only)
+.ssh/
+
+# Deployment memory with credentials (local only)
+DEPLOY_MEMORY.md
 
 # Local config with real calibration (keep *.example.yaml in git)
 config/*.local.yaml
@@ -34,3 +55,10 @@ logs/
 bags/
 rosbag2/
 *.db3
+
+# Camera captures / recordings
+captures/
+*.mp4
+*.avi
+*.mkv
+*.h264

@@ -5,16 +5,16 @@ mode: mock               # mock | test | competition
 mcu:
   transport: memory      # memory | serial
   serial:
-    device: TODO         # e.g. /dev/ttyAMA0 or /dev/serial0 on the Pi
+    # USB转UART：Pi 上一般为 /dev/ttyUSB0；多设备时用稳定路径，如
+    # /dev/serial/by-id/usb-FTDI_FT232R_XXXXXXXX-if00-port0
+    device: TODO
     baudrate: 115200
-  heartbeat_period: 0.05  # s (Pi -> STM32)
-  heartbeat_timeout: 0.2  # s (STM32 side watchdog)
+  cmd_vel_timeout: 0.2   # s — STM32 侧看门狗（协议 §7：200ms 无 CMD_VEL 置零）
 
 watchdog:
   high_level_timeout: 1.0   # s without MCU telemetry -> hardware fault
   camera_timeout: 5.0       # s without camera frames -> fault
   localization_timeout: 10.0  # s without localization update -> RECOVERY
-  imu_timeout: 1.0
   odom_timeout: 1.0
 
 chassis:

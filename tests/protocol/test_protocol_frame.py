@@ -1,4 +1,4 @@
-"""Frame encode/decode round trips and header layout checks."""
+"""Frame encode/decode round trips and header layout checks (protocol v1.1)."""
 import pytest
 
 from core.protocol import (
@@ -13,40 +13,36 @@ from core.protocol.messages import HEADER_SIZE, SOF1, SOF2, VERSION
 
 
 def test_frame_layout():
-    payload = encode_payload("CMD_VELOCITY", vx=0.5, vy=-0.1, wz=0.2)
-    frame = Frame(seq=7, msg_id=spec_by_name("CMD_VELOCITY").msg_id, payload=payload)
+    payload = encode_payload("CMD_VEL", vx_mm_s=500, vy_mm_s=-200,
+                             wz_mrad_s=300)
+    frame = Frame(seq=7, msg_id=spec_by_name("CMD_VEL").msg_id, payload=payload)
     raw = encode_frame(frame)
     assert raw[0] == SOF1 and raw[1] == SOF2
     assert raw[2] == VERSION
-    assert raw[3] == 7                      # seq
-    assert raw[4] == 0x03                   # CMD_VELOCITY id
-    length = raw[5] | (raw[6] << 8)
-    assert length == 12                     # 3 x float32
-    assert len(raw) == HEADER_SIZE + 12 + 2
+    assert raw[3] == 0x01                   # CMD_VEL msg id
+    assert raw[4] == 7                      # seq
+    assert raw[5] == 6                      # LEN: 3 x int16
+    assert len(raw) == HEADER_SIZE + 6 + 2
+
+
+def test_reference_frame_from_doc():
+    """Protocol doc §2.1 golden vector: locks frame layout + CRC + units."""
+    payload = encode_payload("CMD_VEL", vx_mm_s=500, vy_mm_s=-200,
+                             wz_mrad_s=300)
+    frame = encode_frame(Frame(seq=0x07, msg_id=0x01, payload=payload))
+    assert frame == bytes.fromhex("AA5501010706F40138FF2C01CD0B")
 
 
 def test_roundtrip_all_messages():
     samples = {
-        "HEARTBEAT": {"uptime_ms": 123456},
-        "CMD_STOP": {"mode": 1},
-        "CMD_VELOCITY": {"vx": 0.4, "vy": -0.2, "wz": 1.1},
-        "CMD_LINE_FOLLOW_START": {"segment_id": 3, "target_speed": 0.35},
-        "CMD_LINE_FOLLOW_STOP": {},
-        "CMD_LINE_FOLLOW_CONFIG": {"kp": 2.0, "ki": 0.0, "kd": 0.05},
-        "CMD_LINEAR_AXIS": {"axis": 1, "position_mm": 120.5, "speed": 40.0},
-        "CMD_GRIPPER": {"command": 1},
-        "CMD_HOME": {"axis": 0xFF},
-        "MCU_HEARTBEAT": {"uptime_ms": 999, "fault_flags": 0},
-        "ODOMETRY": {"x": 1.5, "y": 0.2, "yaw": 3.0, "vx": 0.1, "vy": 0.0, "wz": -0.5},
-        "IMU": {"yaw": 0.1, "gyro_z": 0.02, "accel_x": 0.0, "accel_y": 0.01},
-        "LINE_STATE": {"line_detected": 1, "line_error": 0.02, "confidence": 0.9,
-                       "controller_state": 1, "intersection_detected": 0, "fault": 0},
-        "MANIPULATOR_STATE": {"x_mm": 150.0, "z_mm": 30.0, "homed": 1,
-                               "gripper_state": 3, "grip_detected": 1,
-                               "moving": 0, "fault": 0, "fault_code": 0},
-        "LIMIT_STATE": {"bitmask": 0x00000005},
-        "FAULT": {"fault_code": 42, "detail": 7},
-        "START_EVENT": {"button_state": 1},
+        "CMD_VEL": {"vx_mm_s": 400, "vy_mm_s": -200, "wz_mrad_s": 300},
+        "CMD_ACTION": {"action_id": 0x03, "param": 120},
+        "ODOM": {"x_mm": 1500, "y_mm": -200, "theta_mrad": 3141,
+                 "vx_mm_s": 100, "vy_mm_s": 0, "wz_mrad_s": -500},
+        "LINE_SENSOR": {"line_detected": 1, "offset_mm": -25,
+                        "confidence": 90},
+        "ROBOT_STATE": {"motor_state": 2, "gripper_state": 3,
+                        "lift_state": 1, "error_code": 0x08},
     }
     for name, values in samples.items():
         payload = encode_payload(name, **values)
@@ -54,17 +50,17 @@ def test_roundtrip_all_messages():
         assert len(payload) == spec.payload_size, name
         decoded = decode_payload(name, payload)
         for key, value in values.items():
-            assert decoded[key] == pytest.approx(value), f"{name}.{key}"
+            assert decoded[key] == value, f"{name}.{key}"
 
 
 def test_encode_missing_field_raises():
     with pytest.raises(KeyError):
-        encode_payload("CMD_VELOCITY", vx=1.0)  # vy / wz missing
+        encode_payload("CMD_VEL", vx_mm_s=1)  # vy / wz missing
 
 
 def test_decode_wrong_size_raises():
     with pytest.raises(ValueError):
-        decode_payload("CMD_VELOCITY", b"\x00" * 5)
+        decode_payload("CMD_VEL", b"\x00" * 5)
 
 
 def test_payload_too_large_rejected():

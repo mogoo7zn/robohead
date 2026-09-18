@@ -31,7 +31,6 @@ class Watchdog:
             "mcu": cfg.get("high_level_timeout", 1.0),
             "camera": cfg.get("camera_timeout", 5.0),
             "localization": cfg.get("localization_timeout", 10.0),
-            "imu": cfg.get("imu_timeout", 1.0),
             "odom": cfg.get("odom_timeout", 1.0),
         }
         # last-seen timestamps, filled by the runner / bridges
@@ -39,7 +38,6 @@ class Watchdog:
         self.last_localization_camera: float = float("-inf")
         self.last_block_camera: float = float("-inf")
         self.last_localization: float = float("-inf")
-        self.last_imu: float = float("-inf")
         self.last_odom: float = float("-inf")
         self.emergency_stop: bool = False
 
@@ -55,9 +53,6 @@ class Watchdog:
     def observe_localization(self) -> None:
         self.last_localization = self._clock.now()
 
-    def observe_imu(self) -> None:
-        self.last_imu = self._clock.now()
-
     def observe_odom(self) -> None:
         self.last_odom = self._clock.now()
 
@@ -72,14 +67,12 @@ class Watchdog:
         loc_cam_ok = self._age(self.last_localization_camera) <= self._timeouts["camera"]
         block_cam_ok = self._age(self.last_block_camera) <= self._timeouts["camera"]
         loc_ok = self._age(self.last_localization) <= self._timeouts["localization"]
-        imu_ok = self._age(self.last_imu) <= self._timeouts["imu"]
 
         self._store.apply_event(HardwareStatusEvent(
             camera_localization_ok=loc_cam_ok,
             camera_block_ok=block_cam_ok,
             mcu_ok=mcu_ok,
             line_sensor_ok=mcu_ok,       # line sensor data arrives via MCU
-            imu_ok=imu_ok,
             chassis_ok=mcu_ok,
             manipulator_ok=mcu_ok,
         ))
